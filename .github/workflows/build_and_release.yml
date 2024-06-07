@@ -69,6 +69,9 @@ jobs:
             echo "ARIA2_VER=${ARIA2_VER}" >> $GITHUB_ENV
           fi
           "${GITHUB_WORKSPACE}/build.sh"
+          if [ "${{ matrix.use_libressl }}" -eq 1 ]; then  
+            mv aria2c aria2c-LibreSSL  
+          fi  
       - name: Archive aria2c
         uses: actions/upload-artifact@v4
         with:
