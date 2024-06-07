@@ -75,7 +75,7 @@ jobs:
       - name: Archive aria2c
         uses: actions/upload-artifact@v4
         with:
-          name: aria2c
+          name: aria2c-${{ matrix.cross_host }}${{ matrix.use_libressl }}
           path: "${{ github.workspace }}/aria2c*"
       - name: zip archiving
         env:
