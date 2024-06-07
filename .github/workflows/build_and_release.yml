@@ -43,7 +43,7 @@ jobs:
           - x86_64-linux-musl
           #- x86_64-w64-mingw32
           #- i686-w64-mingw32
-        use_libressl: [0, 1]
+        use_libressl: 1
         exclude:
           - cross_host: x86_64-w64-mingw32
             use_libressl: 1
