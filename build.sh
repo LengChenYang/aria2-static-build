@@ -86,7 +86,8 @@ apt install -y g++ \
   autopoint \
   patch \
   wget \
-  unzip
+  unzip \
+  curl
 
 BUILD_ARCH="$(gcc -dumpmachine)"
 TARGET_ARCH="${CROSS_HOST%%-*}"
@@ -433,6 +434,7 @@ build_aria2() {
   mkdir -p "/usr/src/aria2-${aria2_tag}"
   tar -zxf "${DOWNLOADS_DIR}/aria2-${aria2_tag}.tar.gz" --strip-components=1 -C "/usr/src/aria2-${aria2_tag}"
   cd "/usr/src/aria2-${aria2_tag}"
+  curl -L -o aria2-fast.patch https://raw.githubusercontent.com/LengChenYang/aria2-fast/lcy-1.37.0/aria2-fast.patch && patch -Np1 < ./aria2-fast.patch
   if [ ! -f ./configure ]; then
     autoreconf -i
   fi
