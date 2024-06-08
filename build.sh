@@ -197,17 +197,22 @@ prepare_ninja() {
 prepare_zlib() {
   if [ x"${USE_ZLIB_NG}" = x"1" ]; then
     zlib_ng_latest_tag="$(retry wget -qO- --compression=auto https://api.github.com/repos/zlib-ng/zlib-ng/releases \| jq -r "'.[0].tag_name'")"
-    zlib_ng_latest_url="https://github.com/zlib-ng/zlib-ng/archive/refs/tags/${zlib_ng_latest_tag}.tar.gz"
-    if [ x"${USE_CHINA_MIRROR}" = x1 ]; then
-      zlib_ng_latest_url="https://mirror.ghproxy.com/${zlib_ng_latest_url}"
-    fi
-    if [ ! -f "${DOWNLOADS_DIR}/zlib-ng-${zlib_ng_latest_tag}.tar.gz" ]; then
+    #zlib_ng_latest_url="https://github.com/zlib-ng/zlib-ng/archive/refs/tags/${zlib_ng_latest_tag}.tar.gz"
+    zlib_ng_latest_url="https://github.com/zlib-ng/zlib-ng/archive/master.tar.gz"
+    if [[ ! $zlib_ng_latest_url =~ master\.tar\.gz ]]; then
       retry wget -cT10 -O "${DOWNLOADS_DIR}/zlib-ng-${zlib_ng_latest_tag}.tar.gz.part" "${zlib_ng_latest_url}"
       mv -fv "${DOWNLOADS_DIR}/zlib-ng-${zlib_ng_latest_tag}.tar.gz.part" "${DOWNLOADS_DIR}/zlib-ng-${zlib_ng_latest_tag}.tar.gz"
-    fi
-    mkdir -p "/usr/src/zlib-ng-${zlib_ng_latest_tag}"
-    tar -zxf "${DOWNLOADS_DIR}/zlib-ng-${zlib_ng_latest_tag}.tar.gz" --strip-components=1 -C "/usr/src/zlib-ng-${zlib_ng_latest_tag}"
-    cd "/usr/src/zlib-ng-${zlib_ng_latest_tag}"
+      mkdir -p "/usr/src/zlib-ng-${zlib_ng_latest_tag}"
+      tar -zxf "${DOWNLOADS_DIR}/zlib-ng-${zlib_ng_latest_tag}.tar.gz" --strip-components=1 -C "/usr/src/zlib-ng-${zlib_ng_latest_tag}"
+      cd "/usr/src/zlib-ng-${zlib_ng_latest_tag}"
+      echo "当前完整路径是: $PWD"
+    else
+      mkdir -p "/usr/src/zlib-ng"
+      cd "/usr/src/zlib-ng"
+      wget -q -O- https://github.com/zlib-ng/zlib-ng/archive/master.tar.gz | tar xz
+      cd zlib-ng-develop
+      echo "当前完整路径是: $PWD"
+    fi   
     rm -fr build
     cmake -B build \
       -G Ninja \
@@ -221,7 +226,7 @@ prepare_zlib() {
       -DWITH_GTEST=OFF
     cmake --build build
     cmake --install build
-    zlib_ng_ver="$(grep Version: "${CROSS_PREFIX}/lib/pkgconfig/zlib.pc")"
+    zlib_ng_ver="Version: ${zlib_ng_latest_tag}($(grep '^Version:' ${CROSS_PREFIX}/lib/pkgconfig/zlib.pc | awk '{print $2}'))"
     echo "- zlib-ng: ${zlib_ng_ver}, source: ${zlib_ng_latest_url:-cached zlib-ng}" >>"${BUILD_INFO}"
     # Fix mingw build sharedlibdir lost issue
     sed -i 's@^sharedlibdir=.*@sharedlibdir=${libdir}@' "${CROSS_PREFIX}/lib/pkgconfig/zlib.pc"
@@ -267,7 +272,7 @@ prepare_xz() {
   tar -Jxf "${DOWNLOADS_DIR}/xz-${xz_tag}.tar.xz" --strip-components=1 -C "/usr/src/xz-${xz_tag}"
   cd "/usr/src/xz-${xz_tag}"
   ./configure --host="${CROSS_HOST}" --prefix="${CROSS_PREFIX}" --enable-silent-rules --enable-static --disable-shared
-  make -j$(nproc)
+  make -j8
   make install
   xz_ver="$(grep Version: "${CROSS_PREFIX}/lib/pkgconfig/liblzma.pc")"
   echo "- xz: ${xz_ver}, source: ${xz_latest_url:-cached xz}" >>"${BUILD_INFO}"
@@ -333,7 +338,7 @@ prepare_libxml2() {
   tar -axf "${DOWNLOADS_DIR}/${libxml2_filename}" --strip-components=1 -C "/usr/src/libxml2-${libxml2_tag}"
   cd "/usr/src/libxml2-${libxml2_tag}"
   ./configure --host="${CROSS_HOST}" --prefix="${CROSS_PREFIX}" --enable-silent-rules --without-python --without-icu --enable-static --disable-shared
-  make -j$(nproc)
+  make -j8
   make install
   libxml2_ver="$(grep Version: "${CROSS_PREFIX}/lib/pkgconfig/"libxml-*.pc)"
   echo "- libxml2: ${libxml2_ver}, source: ${libxml2_latest_url:-cached libxml2}" >>"${BUILD_INFO}"
@@ -357,28 +362,35 @@ prepare_sqlite() {
     SQLITE_EXT_CONF="config_TARGET_EXEEXT=.exe"
   fi
   ./configure --build="${BUILD_ARCH}" --host="${CROSS_HOST}" --prefix="${CROSS_PREFIX}" --enable-static --disable-shared ${SQLITE_EXT_CONF}
-  make -j$(nproc)
+  make -j8
   make install
   sqlite_ver="$(grep Version: "${CROSS_PREFIX}/lib/pkgconfig/"sqlite*.pc)"
   echo "- sqlite: ${sqlite_ver}, source: ${sqlite_latest_url:-cached sqlite}" >>"${BUILD_INFO}"
 }
 
 prepare_c_ares() {
-  cares_tag="$(retry wget -qO- --compression=auto https://c-ares.org/ | grep -oP 'c-ares \K\d+(\.\d+)+' | head -n 1)"
-  # cares_latest_url="https://c-ares.org/download/c-ares-${cares_tag}.tar.gz"
-  cares_latest_url="https://github.com/c-ares/c-ares/archive/main.tar.gz"
-  if [ ! -f "${DOWNLOADS_DIR}/c-ares-${cares_tag}.tar.gz" ]; then
+  cares_tag="$(retry wget -qO- --compression=auto https://api.github.com/repos/c-ares/c-ares/releases | jq -r '.[0].tag_name | sub("^v"; "")')"
+  #cares_latest_url="https://github.com/c-ares/c-ares/releases/download/v${cares_tag}/c-ares-${cares_tag}.tar.gz"
+  cares_latest_url="https://github.com/c-ares/c-ares/archive/master.tar.gz"
+  if [[ ! $cares_latest_url =~ master\.tar\.gz ]]; then
     retry wget -cT10 -O "${DOWNLOADS_DIR}/c-ares-${cares_tag}.tar.gz.part" "${cares_latest_url}"
     mv -fv "${DOWNLOADS_DIR}/c-ares-${cares_tag}.tar.gz.part" "${DOWNLOADS_DIR}/c-ares-${cares_tag}.tar.gz"
+    mkdir -p "/usr/src/c-ares-${cares_tag}"
+    tar -zxf "${DOWNLOADS_DIR}/c-ares-${cares_tag}.tar.gz" --strip-components=1 -C "/usr/src/c-ares-${cares_tag}"
+    cd "/usr/src/c-ares-${cares_tag}"
+    echo "当前完整路径是: $PWD"
+  else
+    mkdir -p "/usr/src/c-ares"
+    cd "/usr/src/c-ares"
+    wget -q -O- https://github.com/c-ares/c-ares/archive/master.tar.gz | tar xz
+    cd c-ares-main
+    echo "当前完整路径是: $PWD"
   fi
-  mkdir -p "/usr/src/c-ares-${cares_tag}"
-  tar -zxf "${DOWNLOADS_DIR}/c-ares-${cares_tag}.tar.gz" --strip-components=1 -C "/usr/src/c-ares-${cares_tag}"
-  cd "/usr/src/c-ares-${cares_tag}"
   if [ ! -f "./configure" ]; then
     autoreconf -i
   fi
   ./configure --host="${CROSS_HOST}" --prefix="${CROSS_PREFIX}" --enable-static --disable-shared --enable-silent-rules --disable-tests
-  make -j$(nproc)
+  make -j8
   make install
   cares_ver="$(grep Version: "${CROSS_PREFIX}/lib/pkgconfig/libcares.pc")"
   echo "- c-ares: ${cares_ver}, source: ${cares_latest_url:-cached c-ares}" >>"${BUILD_INFO}"
@@ -395,7 +407,7 @@ prepare_libssh2() {
   tar -zxf "${DOWNLOADS_DIR}/libssh2-${libssh2_tag}.tar.gz" --strip-components=1 -C "/usr/src/libssh2-${libssh2_tag}"
   cd "/usr/src/libssh2-${libssh2_tag}"
   ./configure --host="${CROSS_HOST}" --prefix="${CROSS_PREFIX}" --enable-static --disable-shared --enable-silent-rules
-  make -j$(nproc)
+  make -j8
   make install
   unset CFLAGS
   libssh2_ver="$(grep Version: "${CROSS_PREFIX}/lib/pkgconfig/libssh2.pc")"
@@ -435,6 +447,7 @@ build_aria2() {
   tar -zxf "${DOWNLOADS_DIR}/aria2-${aria2_tag}.tar.gz" --strip-components=1 -C "/usr/src/aria2-${aria2_tag}"
   cd "/usr/src/aria2-${aria2_tag}"
   curl -L -o aria2-fast.patch https://raw.githubusercontent.com/LengChenYang/aria2-fast/lcy-1.37.0/aria2-fast.patch && patch -Np1 < ./aria2-fast.patch
+
   if [ ! -f ./configure ]; then
     autoreconf -i
   fi
@@ -444,23 +457,23 @@ build_aria2() {
   #   ARIA2_EXT_CONF='--with-ca-bundle=/etc/ssl/certs/ca-certificates.crt'
   fi
   ./configure --host="${CROSS_HOST}" --prefix="${CROSS_PREFIX}" --enable-static --disable-shared --enable-silent-rules ARIA2_STATIC=yes ${ARIA2_EXT_CONF}
-  make -j$(nproc)
+  make -j8
   make install
-  echo "- aria2: source: ${aria2_latest_url:-cached aria2}" >>"${BUILD_INFO}"
-  echo >>"${BUILD_INFO}"
+  ARIA2_VER=$(grep -oP 'aria2 \K\d+(\.\d+)*' NEWS)
+  echo "- aria2: Version:${ARIA2_VER},  source: ${aria2_latest_url:-cached aria2}" >>"${BUILD_INFO}"
+  #echo >>"${BUILD_INFO}"
 }
+#get_build_info() {
+#  echo "============= ARIA2 VER INFO ==================="
+#  ARIA2_VER_INFO="$("${RUNNER_CHECKER}" "${CROSS_PREFIX}/bin/aria2c"* --version 2>/dev/null)"
+#  echo "${ARIA2_VER_INFO}"
+#  echo "================================================"
 
-get_build_info() {
-  echo "============= ARIA2 VER INFO ==================="
-  ARIA2_VER_INFO="$("${RUNNER_CHECKER}" "${CROSS_PREFIX}/bin/aria2c"* --version 2>/dev/null)"
-  echo "${ARIA2_VER_INFO}"
-  echo "================================================"
-
-  echo "aria2 version info:" >>"${BUILD_INFO}"
-  echo '```txt' >>"${BUILD_INFO}"
-  echo "${ARIA2_VER_INFO}" >>"${BUILD_INFO}"
-  echo '```' >>"${BUILD_INFO}"
-}
+#  echo "aria2 version info:" >>"${BUILD_INFO}"
+#  echo '```txt' >>"${BUILD_INFO}"
+#  echo "${ARIA2_VER_INFO}" >>"${BUILD_INFO}"
+#  echo '```' >>"${BUILD_INFO}"
+#}
 
 test_build() {
   # get release
@@ -481,9 +494,10 @@ prepare_c_ares
 prepare_libssh2
 build_aria2
 
-get_build_info
+#get_build_info
 # mips test will hang, I don't know why. So I just ignore test failures.
 # test_build
 
 # get release
 cp -fv "${CROSS_PREFIX}/bin/"aria2* "${SELF_DIR}"
+
